@@ -13,6 +13,7 @@ var createTask = function(taskText, taskDate, taskList) {
   // append span and p element to parent li
   taskLi.append(taskSpan, taskP);
 
+  auditTask(taskLi);
 
   // append to ul list on the page
   $("#list-" + taskList).append(taskLi);
@@ -45,8 +46,149 @@ var saveTasks = function() {
   localStorage.setItem("tasks", JSON.stringify(tasks));
 };
 
+$(".list-group").on("click", "p", function () {
+  var text = $(this)
+    .text()
+    .trim();
+  var textInput = $("<textarea>")
+    .addClass("form-control")
+    .val(text);
+  $(this).replaceWith(textInput);
+  textInput.trigger("focus");
+});
 
+$(".list-group").on("blur", "textarea", function() {
+  var text = $(this)
+    .val()
+    .trim();
+  var status = $(this)
+    .closest(".list-group")
+    .attr("id")
+    .replace("list-","")
+  var index = $(this)
+    .closest(".list-group-item")
+    .index();
+  tasks[status][index].text = text;
+  saveTasks();
+  var taskP = $("<p>")
+    .addClass("m-1")
+    .text(text);
+  $(this).replaceWith(taskP);
+})
 
+$(".list-group").on("click", "span", function() {
+  var date = $(this)
+    .text()
+    .trim();
+  var dateInput = $("<input>")
+    .attr("type", "text")
+    .addClass("form-control")
+    .val(date);
+  $(this).replaceWith(dateInput);
+  dateInput.datepicker({
+    minDate: 1,
+    onClose: function() {
+      $(this).trigger("change")
+    }
+  });
+})
+
+$(".list-group").on("change", "input[type='text']", function() {
+  var date = $(this)
+    .val()
+    .trim();
+  var status = $(this)
+    .closest(".list-group")
+    .attr("id")
+    .replace("list-", "");
+  var index = $(this)
+    .closest(".list-group-item")
+    .index();
+  tasks[status][index].date = date;
+  saveTasks();
+  var taskSpan = $("<span>")
+    .addClass("badge badge-primary badge-pill")
+    .text(date);
+  $(this).replaceWith(taskSpan);
+  auditTask($(taskSpan).closest(".list-group-item"));
+});
+
+$(".card .list-group").sortable({
+  connectWith: $(".card .list-group"),
+  scroll: false,
+  tolerance: "pointer",
+  helper: "clone",
+  activate: function(event, ui) {
+    $(this).addClass("dropover")
+    $(".bottom-trash").addClass("bottom-trash-drag")
+  },
+  deactivate: function(event, ui){
+    $(this).removeClass("dropover")
+    $(".bottom-trash").removeClass("bottom-trash-drag")
+  },
+  over: function(event) {
+    $(event.target).addClass("dropover-active")
+  },
+  out: function(event){
+    $(event.target).removeClass("dropover-active")
+  },
+  update: function(event) {
+    var tempArr = [];
+    $(this).children().each(function(){
+      var text = $(this)
+        .find("p")
+        .text()
+        .trim();
+      var date = $(this)
+        .find("span")
+        .text()
+        .trim();
+
+      tempArr.push({
+        text: text,
+        date: date
+      });
+    });
+    var arrName = $(this)
+      .attr("id")
+      .replace("list-", "");
+    tasks[arrName] = tempArr;
+    saveTasks();
+  }
+});
+
+$("#trash").droppable({
+    accept: ".card .list-group-item",
+    tolerance: "touch",
+    drop: function(event, ui) {
+      ui.draggable.remove();
+      $(".bottom-trash").removeClass("bottom-trash-active");
+    },
+    over: function(event, ui) {
+      $(".bottom-trash").addClass("bottom-trash-active");
+    },
+    out: function(event, ui) {
+      $(".bottom-trash").removeClass("bottom-trash-active");
+    }
+})
+
+var auditTask = function(taskEl) {
+  var date = $(taskEl).find("span").text().trim();
+  var time = moment(date, "L").set("hour", 17);
+  $(taskEl).removeClass("list-group-item-warning list-group-item-danger");
+  if (moment().isAfter(time)) {
+    $(taskEl).addClass("list-group-item-danger")
+  }
+  else if (Math.abs(moment().diff(time, "days")) <= 2) {
+    $(taskEl).addClass("list-group-item-warning");
+  }
+}
+
+setInterval(function() {
+  $(".card .list-group-item").each(function(index, el) {
+    auditTask(el);
+  });
+}, (1000 * 60) * 30);
 
 // modal was triggered
 $("#task-form-modal").on("show.bs.modal", function() {
@@ -60,8 +202,12 @@ $("#task-form-modal").on("shown.bs.modal", function() {
   $("#modalTaskDescription").trigger("focus");
 });
 
+$("#modalDueDate").datepicker({
+  minDate: 1
+});
+
 // save button in modal was clicked
-$("#task-form-modal .btn-primary").click(function() {
+$("#task-form-modal .btn-save").click(function() {
   // get form values
   var taskText = $("#modalTaskDescription").val();
   var taskDate = $("#modalDueDate").val();
